@@ -35,3 +35,8 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+medcrypto-glass/
+medcrypto-v2/
+medcrypto-v3/
+requirements-dev.txt
