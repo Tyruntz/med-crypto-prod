@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Error {{ code }} — MedCrypto{% endblock %}
 {% block body %}
-<div style="min-height:70vh;display:flex;align-items:center;justify-content:center;">
-  <div style="text-align:center;">
-    <div style="font-family:'DM Mono',monospace;font-size:64px;color:#30363d;">{{ code }}</div>
-    <div style="font-size:16px;color:#8b949e;margin-top:8px;">{{ msg }}</div>
-    <a href="{{ url_for('dashboard') }}" class="btn btn-primary" style="margin-top:24px;display:inline-flex;">← Kembali ke Dashboard</a>
+<div class="error-page">
+  <div class="error-card">
+    <div class="error-code">{{ code }}</div>
+    <div class="error-msg">{{ msg }}</div>
+    <a href="{{ url_for('dashboard') }}" class="btn-back">← Kembali ke Dashboard</a>
   </div>
 </div>
 {% endblock %}

@@ -1,40 +1,137 @@
 {% extends "base.html" %}
-{% set current_user = namespace(username=none, role=none) %}
 {% block title %}Dashboard — MedCrypto{% endblock %}
-
 {% block body %}
-<div class="container">
-  <div class="page-header">
-    <div class="page-title">Konsultasi Saya</div>
-    <div class="page-sub">
-      Login sebagai <strong>{{ user.username }}</strong> ({{ user.role }})
-      — Semua pesan dienkripsi AES-256 CBC end-to-end
-    </div>
-  </div>
+<div class="app-shell">
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
 
-  {% if consultations %}
-  <div class="consult-list">
-    {% for c in consultations %}
-    <div class="consult-card">
-      <div class="consult-info">
-        <div class="consult-id">Konsultasi #{{ c.id }}</div>
-        <div class="consult-partner">
-          {% if user.role == 'pasien' %}
-            👨‍⚕️ {{ c.doctor.username }}
-          {% else %}
-            🧑‍💼 {{ c.patient.username }}
-          {% endif %}
-        </div>
-        <div class="consult-enc">⚿ DEK terenkripsi dengan KEK (AES-256)</div>
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-avatar">🏥</div>
+      <div>
+        <div class="brand-name">MedCrypto</div>
+        <div class="brand-code">AES-256</div>
       </div>
-      <a href="{{ url_for('chat_room', consultation_id=c.id) }}" class="btn btn-primary">
-        Buka Chat →
+    </div>
+    <nav class="sidebar-nav">
+      <a href="{{ url_for('dashboard') }}" class="nav-item active">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        </span>
+        Dashboard
+      </a>
+      <a href="#" class="nav-item" style="cursor:default;opacity:.5;">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </span>
+        Konsultasi
+      </a>
+      <a href="#" class="nav-item" style="cursor:default;opacity:.5;">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </span>
+        Profil
+      </a>
+      <a href="#" class="nav-item" style="cursor:default;opacity:.5;">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+        </span>
+        Keamanan
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="{{ url_for('logout') }}" class="nav-item">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </span>
+        Keluar
       </a>
     </div>
-    {% endfor %}
+  </aside>
+
+  <!-- Main -->
+  <div class="main-content">
+    <!-- Dark navy topbar -->
+    <div class="topbar">
+      <button class="hamburger" onclick="openSidebar()">☰</button>
+      <div class="topbar-title">Dashboard</div>
+      <div class="topbar-divider"></div>
+      <div class="topbar-sub">{{ user.username }} · {{ user.role }}</div>
+      <div class="topbar-right">
+        <div class="topbar-badge secure">
+          <span class="dot"></span>AES-256 CBC
+        </div>
+        <div class="topbar-badge">E2E Encrypted</div>
+      </div>
+    </div>
+
+    <div class="page">
+      <div class="page-header">
+        <div class="page-title">Konsultasi Saya</div>
+        <div class="page-sub">Semua percakapan dienkripsi end-to-end menggunakan AES-256 CBC</div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon-wrap blue">💬</div>
+          <div class="stat-value">{{ consultations|length }}</div>
+          <div class="stat-label">Konsultasi Aktif</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon-wrap navy">🔐</div>
+          <div class="stat-value">256</div>
+          <div class="stat-label">Bit Enkripsi</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon-wrap green">✅</div>
+          <div class="stat-value">CBC</div>
+          <div class="stat-label">Mode Cipher</div>
+        </div>
+      </div>
+
+      <div class="section-label">Daftar Konsultasi</div>
+
+      {% if consultations %}
+      <div class="consult-list">
+        {% for c in consultations %}
+        <a href="{{ url_for('chat_room', consultation_id=c.id) }}" class="consult-card">
+          <div class="consult-avatar">
+            {% if user.role == 'pasien' %}👨‍⚕️{% else %}🧑‍💼{% endif %}
+            <span class="online-dot"></span>
+          </div>
+          <div class="consult-info">
+            <div class="consult-id">Konsultasi #{{ c.id }}</div>
+            <div class="consult-name">
+              {% if user.role == 'pasien' %}{{ c.doctor.username }}{% else %}{{ c.patient.username }}{% endif %}
+            </div>
+            <div class="consult-enc">AES-256 CBC · End-to-End</div>
+          </div>
+          <div class="consult-arrow">›</div>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="text-align:center;padding:48px;color:var(--text-faint);">
+        <div style="font-size:36px;margin-bottom:12px;">🏥</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text-muted);">Belum ada konsultasi</div>
+      </div>
+      {% endif %}
+    </div>
   </div>
-  {% else %}
-  <div class="empty-state">Belum ada konsultasi tersedia.</div>
-  {% endif %}
 </div>
+
+<script>
+function openSidebar() {
+  document.getElementById("sidebar").classList.add("open");
+  document.getElementById("sidebarOverlay").classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+function closeSidebar() {
+  document.getElementById("sidebar").classList.remove("open");
+  document.getElementById("sidebarOverlay").classList.remove("open");
+  document.body.style.overflow = "";
+}
+window.addEventListener("resize", function() { if (window.innerWidth > 768) closeSidebar(); });
+</script>
 {% endblock %}

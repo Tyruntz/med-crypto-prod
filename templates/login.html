@@ -1,34 +1,58 @@
 {% extends "base.html" %}
 {% block title %}Login — MedCrypto{% endblock %}
-{% block navbar %}{% endblock %}
-
 {% block body %}
-<div class="login-wrap">
-  <div class="login-card">
-    <div class="login-logo">🔐 MedCrypto</div>
-    <div class="login-sub">Sistem Konsultasi Medis Terenkripsi AES-256</div>
-
-    <form method="POST" action="{{ url_for('login') }}">
-      <div class="form-group">
-        <label for="username">Username</label>
-        <input type="text" id="username" name="username" placeholder="dr_andi / budi" required autocomplete="off"/>
+<div class="login-page">
+  <!-- Left: dark navy panel -->
+  <div class="login-left">
+    <div class="login-logo">
+      <div class="login-logo-icon">🏥</div>
+      <div class="login-logo-text">MedCrypto</div>
+    </div>
+    <div class="login-hero">
+      <h2>Platform Konsultasi Medis Terenkripsi</h2>
+      <p>Komunikasi dokter-pasien yang aman dengan enkripsi AES-256 end-to-end. Pesan Anda tidak pernah tersimpan dalam bentuk terbaca di server.</p>
+      <div class="login-feature">
+        <div class="login-feature-dot">🔐</div>
+        <span>Enkripsi AES-256 CBC client-side</span>
       </div>
-      <div class="form-group">
-        <label for="password">Password</label>
-        <input type="password" id="password" name="password" placeholder="••••••••" required/>
+      <div class="login-feature">
+        <div class="login-feature-dot">🔑</div>
+        <span>Key Management System (KMS)</span>
       </div>
-      {% if error %}
-        <div class="form-error">{{ error }}</div>
-      {% endif %}
-      <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; margin-top:8px;">
-        Masuk →
-      </button>
-    </form>
+      <div class="login-feature">
+        <div class="login-feature-dot">🛡️</div>
+        <span>Zero Knowledge Server Architecture</span>
+      </div>
+    </div>
+    <div class="login-footer">© 2025 MedCrypto · Universitas Widya Dharma Pontianak</div>
+  </div>
 
-    <div class="demo-hint">
-      <strong>Demo credentials:</strong><br/>
-      Pasien : budi / pasien123<br/>
-      Dokter : dr_andi / dokter123
+  <!-- Right: login form -->
+  <div class="login-right">
+    <div class="login-card">
+      <div class="login-card-title">Selamat Datang</div>
+      <div class="login-card-sub">Masuk ke sistem konsultasi medis Anda</div>
+      <form method="POST" action="{{ url_for('login') }}">
+        <div class="form-group">
+          <label class="form-label">Username</label>
+          <input class="form-input" type="text" name="username"
+                 placeholder="Masukkan username" required autocomplete="off"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input class="form-input" type="password" name="password"
+                 placeholder="••••••••" required/>
+        </div>
+        {% if error %}<div class="form-error">⚠️ {{ error }}</div>{% endif %}
+        <button type="submit" class="btn-login">Masuk →</button>
+      </form>
+      <div class="demo-box">
+        <div class="demo-box-title">Demo Credentials</div>
+        <div class="demo-box-creds">
+          Pasien : budi / pasien123<br/>
+          Dokter : dr_andi / dokter123
+        </div>
+      </div>
     </div>
   </div>
 </div>

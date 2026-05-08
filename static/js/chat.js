@@ -1,132 +1,91 @@
-/**
- * chat.js
- * =======
- * Logic UI untuk ruang chat konsultasi medis.
- * Handles: KMS handshake → dekripsi pesan lama → kirim pesan baru → polling.
- *
- * SECURITY NOTE:
- *   DEK disimpan di variabel `_dek` (memory only).
- *   TIDAK pernah masuk localStorage, sessionStorage, atau DOM.
- */
-
 "use strict";
-
 (function () {
-  // ---------------------------------------------------------------------------
-  // State (volatile — hilang saat tab/window ditutup)
-  // ---------------------------------------------------------------------------
-  let _dek           = null;   // Plaintext DEK hex (dari KMS)
-  let _consultId     = null;
-  let _currentUserId = null;
-  let _lastMsgId     = 0;
-  let _pollInterval  = null;
+  let _dek = null, _consultId = null, _currentUserId = null, _lastMsgId = 0;
 
-  // ---------------------------------------------------------------------------
-  // Init
-  // ---------------------------------------------------------------------------
   document.addEventListener("DOMContentLoaded", async () => {
     _consultId     = parseInt(document.getElementById("consultation-id").value);
     _currentUserId = parseInt(document.getElementById("current-user-id").value);
-
-    updateStatus("🔑 Mengambil kunci enkripsi dari KMS...", "info");
-
+    updateStatus("Mengambil kunci enkripsi...", "info");
     try {
       await doHandshake();
-      updateStatus("🔒 Terenkripsi AES-256 CBC — Pesan aman", "success");
+      updateStatus("Terenkripsi AES-256 CBC", "success");
       await loadMessages();
-      startPolling();
+      setInterval(pollMessages, 3000);
     } catch (err) {
-      updateStatus("❌ Gagal inisialisasi: " + err.message, "danger");
-      console.error(err);
+      updateStatus("Gagal: " + err.message, "danger");
     }
-
-    // Event: kirim pesan
     document.getElementById("send-btn").addEventListener("click", sendMessage);
     document.getElementById("msg-input").addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-      }
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    });
+    // Auto-resize textarea
+    const ta = document.getElementById("msg-input");
+    ta.addEventListener("input", () => {
+      ta.style.height = "auto";
+      ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // KMS Handshake — Fase 1
-  // ---------------------------------------------------------------------------
   async function doHandshake() {
     const res  = await fetch("/api/unwrap-key", {
-      method:  "POST",
+      method: "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ consultation_id: _consultId }),
+      body: JSON.stringify({ consultation_id: _consultId })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "KMS error");
-    _dek = data.dek; // Simpan DEK di memory state (BUKAN localStorage!)
+    _dek = data.dek;
   }
 
-  // ---------------------------------------------------------------------------
-  // Load & decrypt pesan lama
-  // ---------------------------------------------------------------------------
   async function loadMessages() {
-    const res  = await fetch(`/api/messages/${_consultId}`);
+    const res  = await fetch("/api/messages/" + _consultId);
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
-
     const box = document.getElementById("messages-box");
+    // Keep date divider
+    const divider = box.querySelector(".date-divider");
     box.innerHTML = "";
-
+    if (divider) box.appendChild(divider);
     for (const msg of data.messages) {
       renderMessage(msg);
       _lastMsgId = Math.max(_lastMsgId, msg.id);
     }
-    scrollToBottom();
+    scrollBottom();
   }
 
-  // ---------------------------------------------------------------------------
-  // Polling untuk pesan baru
-  // ---------------------------------------------------------------------------
-  function startPolling() {
-    _pollInterval = setInterval(async () => {
-      try {
-        const res  = await fetch(`/api/messages/${_consultId}`);
-        const data = await res.json();
-        if (!res.ok) return;
-
-        const newMessages = data.messages.filter(m => m.id > _lastMsgId);
-        for (const msg of newMessages) {
-          renderMessage(msg);
-          _lastMsgId = Math.max(_lastMsgId, msg.id);
-        }
-        if (newMessages.length > 0) scrollToBottom();
-      } catch (_) {}
-    }, 3000); // poll setiap 3 detik
+  async function pollMessages() {
+    try {
+      const res  = await fetch("/api/messages/" + _consultId);
+      const data = await res.json();
+      if (!res.ok) return;
+      const newMsgs = data.messages.filter(m => m.id > _lastMsgId);
+      for (const msg of newMsgs) {
+        renderMessage(msg);
+        _lastMsgId = Math.max(_lastMsgId, msg.id);
+      }
+      if (newMsgs.length) scrollBottom();
+    } catch (_) {}
   }
 
-  // ---------------------------------------------------------------------------
-  // Kirim pesan — Fase 2 (Enkripsi)
-  // ---------------------------------------------------------------------------
   async function sendMessage() {
     const input = document.getElementById("msg-input");
-    const plaintext = input.value.trim();
-    if (!plaintext || !_dek) return;
-
+    const text  = input.value.trim();
+    if (!text || !_dek) return;
     input.value = "";
+    input.style.height = "auto";
     input.disabled = true;
-
     try {
-      const { ciphertext, iv } = encryptMessage(plaintext, _dek);
-
-      const res = await fetch(`/api/messages/${_consultId}`, {
-        method:  "POST",
+      const { ciphertext, iv } = encryptMessage(text, _dek);
+      const res  = await fetch("/api/messages/" + _consultId, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ ciphertext, iv }),
+        body: JSON.stringify({ ciphertext, iv })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-
-      renderMessage(data.message, plaintext); // tampil langsung tanpa dekripsi ulang
+      renderMessage(data.message, text);
       _lastMsgId = Math.max(_lastMsgId, data.message.id);
-      scrollToBottom();
+      scrollBottom();
     } catch (err) {
       alert("Gagal kirim: " + err.message);
     } finally {
@@ -135,50 +94,78 @@
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Render satu bubble pesan — Fase 3 (Dekripsi)
-  // ---------------------------------------------------------------------------
-  function renderMessage(msg, knownPlaintext = null) {
+  function renderMessage(msg, knownPlaintext) {
     const box      = document.getElementById("messages-box");
     const isMine   = msg.sender_id === _currentUserId;
-    const plaintext = knownPlaintext !== null
+    const plaintext = knownPlaintext !== undefined
       ? knownPlaintext
       : decryptMessage(msg.ciphertext, _dek, msg.iv);
 
-    const bubble = document.createElement("div");
-    bubble.className = `msg-bubble ${isMine ? "mine" : "theirs"}`;
-    bubble.dataset.msgId = msg.id;
+    const row = document.createElement("div");
+    row.className = "msg-row " + (isMine ? "mine" : "theirs");
 
-    bubble.innerHTML = `
-      <div class="bubble-sender">${escapeHtml(msg.sender_username)}</div>
-      <div class="bubble-text">${escapeHtml(plaintext)}</div>
-      <div class="bubble-meta">
-        <span class="bubble-time">${msg.created_at}</span>
-        <span class="bubble-cipher" title="Ciphertext: ${escapeHtml(msg.ciphertext)} | IV: ${msg.iv}">🔒</span>
-      </div>
-    `;
-    box.appendChild(bubble);
-  }
+    const avatarEl = document.createElement("div");
+    avatarEl.className = "msg-avatar";
+    avatarEl.textContent = msg.sender_username ? msg.sender_username[0].toUpperCase() : "?";
 
-  // ---------------------------------------------------------------------------
-  // Helpers
-  // ---------------------------------------------------------------------------
-  function scrollToBottom() {
-    const box = document.getElementById("messages-box");
-    box.scrollTop = box.scrollHeight;
+    const contentEl = document.createElement("div");
+    contentEl.className = "msg-content";
+
+    if (!isMine) {
+      const senderEl = document.createElement("div");
+      senderEl.className = "msg-sender";
+      senderEl.textContent = msg.sender_username || "?";
+      contentEl.appendChild(senderEl);
+    }
+
+    const bubbleEl = document.createElement("div");
+    bubbleEl.className = "msg-bubble";
+    bubbleEl.textContent = plaintext;
+
+    const metaEl = document.createElement("div");
+    metaEl.className = "msg-meta";
+    metaEl.innerHTML =
+      '<span class="msg-time">' + (msg.created_at || "") + '</span>' +
+      '<span class="msg-lock" title="Ciphertext: ' + esc(msg.ciphertext).slice(0,40) + '... IV: ' + msg.iv + '">🔒</span>';
+
+    contentEl.appendChild(bubbleEl);
+    contentEl.appendChild(metaEl);
+
+    if (isMine) {
+      row.appendChild(contentEl);
+    } else {
+      row.appendChild(avatarEl);
+      row.appendChild(contentEl);
+    }
+    box.appendChild(row);
   }
 
   function updateStatus(text, type) {
     const el = document.getElementById("crypto-status");
-    el.textContent = text;
-    el.className   = `crypto-status status-${type}`;
+    if (!el) return;
+    const icons = { info: "⏳", success: "🔒", danger: "❌" };
+    el.textContent = (icons[type] || "") + " " + text;
+    if (type === "success") {
+      el.className = "topbar-badge secure";
+    } else {
+      el.className = "topbar-badge";
+    }
+    // Also update sub-header status if exists
+    const el2 = document.getElementById("enc-status");
+    if (el2) {
+      el2.textContent = (icons[type] || "") + " " + text;
+      el2.className = "crypto-status status-" + type;
+    }
   }
 
-  function escapeHtml(str) {
+  function scrollBottom() {
+    const box = document.getElementById("messages-box");
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function esc(str) {
     return String(str)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
   }
 })();

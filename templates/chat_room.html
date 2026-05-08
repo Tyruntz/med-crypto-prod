@@ -1,57 +1,174 @@
 {% extends "base.html" %}
 {% block title %}Chat #{{ consultation.id }} — MedCrypto{% endblock %}
-
-{% block navbar %}
-{# Override navbar untuk layout full-height chat #}
-<nav class="navbar">
-  <div class="container navbar-inner">
-    <div class="navbar-brand">MedCrypto<span>.app</span></div>
-    <div class="navbar-user">
-      <span class="role-badge {% if user.role == 'dokter' %}dokter{% endif %}">{{ user.role }}</span>
-      <span>{{ user.username }}</span>
-      <a href="{{ url_for('dashboard') }}" class="btn btn-sm">← Dashboard</a>
-      <a href="{{ url_for('logout') }}" class="btn btn-sm">Logout</a>
-    </div>
-  </div>
-</nav>
-{% endblock %}
-
 {% block body %}
-{# Hidden inputs untuk JS #}
 <input type="hidden" id="consultation-id" value="{{ consultation.id }}"/>
 <input type="hidden" id="current-user-id" value="{{ user.id }}"/>
 
-<div class="chat-layout">
-  <!-- Header chat -->
-  <div class="chat-header">
-    <div class="chat-header-info">
-      <div class="chat-partner">
-        {% if user.role == 'pasien' %}👨‍⚕️{% else %}🧑‍💼{% endif %}
-        {{ other.username }}
+<div class="app-shell">
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-avatar">🏥</div>
+      <div>
+        <div class="brand-name">MedCrypto</div>
+        <div class="brand-code">AES-256</div>
       </div>
-      <div class="chat-consult-id">Konsultasi #{{ consultation.id }}</div>
     </div>
-    <div id="crypto-status" class="crypto-status status-info">⏳ Menginisialisasi...</div>
-  </div>
+    <nav class="sidebar-nav">
+      <a href="{{ url_for('dashboard') }}" class="nav-item">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        </span>
+        Dashboard
+      </a>
+      <a href="#" class="nav-item active">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </span>
+        Chat Aktif
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="{{ url_for('logout') }}" class="nav-item">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </span>
+        Keluar
+      </a>
+    </div>
+  </aside>
 
-  <!-- Area pesan -->
-  <div id="messages-box">
-    <!-- Diisi oleh chat.js via JS -->
-  </div>
+  <!-- Main -->
+  <div class="main-content">
+    <!-- Dark navy topbar -->
+    <div class="topbar">
+      <button class="hamburger" onclick="openSidebar()">☰</button>
+      <div class="topbar-title">Chat</div>
+      <div class="topbar-divider"></div>
+      <div class="topbar-sub">Konsultasi #{{ consultation.id }}</div>
+      <div class="topbar-right">
+        <div id="crypto-status" class="topbar-badge">⏳ Inisialisasi...</div>
+      </div>
+    </div>
 
-  <!-- Input area -->
-  <div class="chat-input-area">
-    <textarea id="msg-input" rows="1" placeholder="Ketik pesan... (Enter untuk kirim)"></textarea>
-    <button id="send-btn">Kirim 🔒</button>
+    <!-- Chat shell: main + members panel -->
+    <div class="chat-shell">
+      <div class="chat-main">
+        <!-- Sub-header with partner info -->
+        <div class="chat-subheader">
+          <div class="chat-partner-avatar">
+            {% if user.role == 'pasien' %}👨‍⚕️{% else %}🧑‍💼{% endif %}
+            <span class="online-dot"></span>
+          </div>
+          <div>
+            <div class="chat-partner-name">{{ other.username }}</div>
+            <div class="chat-partner-sub">{{ other.role }} · Online</div>
+          </div>
+          <div class="chat-subheader-right">
+            <div id="enc-status" class="crypto-status status-info">
+              🔒 Menginisialisasi enkripsi...
+            </div>
+          </div>
+        </div>
+
+        <!-- Messages -->
+        <div id="messages-box">
+          <div class="date-divider">Hari ini</div>
+        </div>
+
+        <!-- Input -->
+        <div class="chat-input-area">
+          <div class="input-wrap">
+            <textarea id="msg-input" rows="1"
+                      placeholder="Tulis pesan terenkripsi..."></textarea>
+          </div>
+          <button id="send-btn" title="Kirim pesan terenkripsi">➤</button>
+        </div>
+      </div>
+
+      <!-- Members panel (right) -->
+      <div class="members-panel">
+        <div class="members-header">Peserta</div>
+        <div class="members-list">
+          <!-- Current user -->
+          <div class="member-item">
+            <div class="member-avatar {% if user.role == 'dokter' %}dokter{% endif %}">
+              {{ user.username[0]|upper }}
+              <span class="member-dot online"></span>
+            </div>
+            <div class="member-info">
+              <div class="member-name">{{ user.username }}</div>
+              <div class="member-role">{{ user.role }} (Anda)</div>
+            </div>
+          </div>
+          <!-- Partner -->
+          <div class="member-item">
+            <div class="member-avatar {% if other.role == 'dokter' %}dokter{% endif %}">
+              {{ other.username[0]|upper }}
+              <span class="member-dot online"></span>
+            </div>
+            <div class="member-info">
+              <div class="member-name">{{ other.username }}</div>
+              <div class="member-role">{{ other.role }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
+
+<script>
+// Override crypto-status update ke dua elemen
+window._origUpdateStatus = null;
+function openSidebar() {
+  document.getElementById("sidebar").classList.add("open");
+  document.getElementById("sidebarOverlay").classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+function closeSidebar() {
+  document.getElementById("sidebar").classList.remove("open");
+  document.getElementById("sidebarOverlay").classList.remove("open");
+  document.body.style.overflow = "";
+}
+window.addEventListener("resize", function() { if (window.innerWidth > 768) closeSidebar(); });
+</script>
 {% endblock %}
 
 {% block scripts %}
-{# CryptoJS dari CDN — wajib load sebelum crypto-logic.js #}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
-{# Core encryption logic (Bab III skripsi) #}
 <script src="{{ url_for('static', filename='js/crypto-logic.js') }}"></script>
-{# UI chat logic #}
+<script>
+// Patch chat.js to update both status elements
+(function() {
+  const _origUpdateStatus = function(text, type) {
+    const el1 = document.getElementById("crypto-status");
+    const el2 = document.getElementById("enc-status");
+    const labels = { info: "⏳", success: "🔒", danger: "❌" };
+    const icon = labels[type] || "";
+    if (el1) { el1.textContent = icon + " " + text; el1.className = "topbar-badge" + (type === "secure" || type === "success" ? " secure" : ""); }
+    if (el2) { el2.textContent = icon + " " + text; el2.className = "crypto-status status-" + type; }
+  };
+  window.__patchedUpdateStatus = _origUpdateStatus;
+})();
+</script>
 <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+<script>
+// Apply patch after chat.js loads
+document.addEventListener("DOMContentLoaded", function() {
+  // chat.js calls updateStatus internally via closure, we observe DOM change
+  const obs = new MutationObserver(function() {
+    const el1 = document.getElementById("crypto-status");
+    const el2 = document.getElementById("enc-status");
+    if (el1 && el2 && el1.textContent !== el2.textContent) {
+      el2.textContent = el1.textContent;
+      el2.className = "crypto-status " + (el1.classList.contains("status-success") ? "status-success" : el1.classList.contains("status-danger") ? "status-danger" : "status-info");
+    }
+  });
+  const el = document.getElementById("crypto-status");
+  if (el) obs.observe(el, { characterData: true, subtree: true, childList: true, attributes: true });
+});
+</script>
 {% endblock %}
