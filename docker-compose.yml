@@ -1,0 +1,84 @@
+version: "3.9"
+
+services:
+  # ----------------------------------------------------------
+  # PostgreSQL Database
+  # ----------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: medcrypto_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       medcrypto_db
+      POSTGRES_USER:     medcrypto_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-medcrypto_pass}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medcrypto_user -d medcrypto_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+  # ----------------------------------------------------------
+  # Flask App (Gunicorn)
+  # ----------------------------------------------------------
+  app:
+    build: .
+    container_name: medcrypto_app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      FLASK_ENV:      production
+      SECRET_KEY:     ${SECRET_KEY}
+      MASTER_KEK:     ${MASTER_KEK}
+      DATABASE_URL:   postgresql://medcrypto_user:${POSTGRES_PASSWORD:-medcrypto_pass}@db:5432/medcrypto_db
+      GUNICORN_PORT:  8000
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
+    volumes:
+      - app_logs:/app/logs
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - internal
+      - external
+
+  # ----------------------------------------------------------
+  # Nginx Reverse Proxy
+  # ----------------------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: medcrypto_nginx
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro          # taruh cert SSL di sini
+      - nginx_logs:/var/log/nginx
+      - ./static:/app/static
+    networks:
+      - external
+
+volumes:
+  postgres_data:
+  app_logs:
+  nginx_logs:
+
+networks:
+  internal:
+    driver: bridge
+  external:
+    driver: bridge

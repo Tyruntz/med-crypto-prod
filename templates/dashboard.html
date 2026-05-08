@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% set current_user = namespace(username=none, role=none) %}
+{% block title %}Dashboard — MedCrypto{% endblock %}
+
+{% block body %}
+<div class="container">
+  <div class="page-header">
+    <div class="page-title">Konsultasi Saya</div>
+    <div class="page-sub">
+      Login sebagai <strong>{{ user.username }}</strong> ({{ user.role }})
+      — Semua pesan dienkripsi AES-256 CBC end-to-end
+    </div>
+  </div>
+
+  {% if consultations %}
+  <div class="consult-list">
+    {% for c in consultations %}
+    <div class="consult-card">
+      <div class="consult-info">
+        <div class="consult-id">Konsultasi #{{ c.id }}</div>
+        <div class="consult-partner">
+          {% if user.role == 'pasien' %}
+            👨‍⚕️ {{ c.doctor.username }}
+          {% else %}
+            🧑‍💼 {{ c.patient.username }}
+          {% endif %}
+        </div>
+        <div class="consult-enc">⚿ DEK terenkripsi dengan KEK (AES-256)</div>
+      </div>
+      <a href="{{ url_for('chat_room', consultation_id=c.id) }}" class="btn btn-primary">
+        Buka Chat →
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">Belum ada konsultasi tersedia.</div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Chat #{{ consultation.id }} — MedCrypto{% endblock %}
+
+{% block navbar %}
+{# Override navbar untuk layout full-height chat #}
+<nav class="navbar">
+  <div class="container navbar-inner">
+    <div class="navbar-brand">MedCrypto<span>.app</span></div>
+    <div class="navbar-user">
+      <span class="role-badge {% if user.role == 'dokter' %}dokter{% endif %}">{{ user.role }}</span>
+      <span>{{ user.username }}</span>
+      <a href="{{ url_for('dashboard') }}" class="btn btn-sm">← Dashboard</a>
+      <a href="{{ url_for('logout') }}" class="btn btn-sm">Logout</a>
+    </div>
+  </div>
+</nav>
+{% endblock %}
+
+{% block body %}
+{# Hidden inputs untuk JS #}
+<input type="hidden" id="consultation-id" value="{{ consultation.id }}"/>
+<input type="hidden" id="current-user-id" value="{{ user.id }}"/>
+
+<div class="chat-layout">
+  <!-- Header chat -->
+  <div class="chat-header">
+    <div class="chat-header-info">
+      <div class="chat-partner">
+        {% if user.role == 'pasien' %}👨‍⚕️{% else %}🧑‍💼{% endif %}
+        {{ other.username }}
+      </div>
+      <div class="chat-consult-id">Konsultasi #{{ consultation.id }}</div>
+    </div>
+    <div id="crypto-status" class="crypto-status status-info">⏳ Menginisialisasi...</div>
+  </div>
+
+  <!-- Area pesan -->
+  <div id="messages-box">
+    <!-- Diisi oleh chat.js via JS -->
+  </div>
+
+  <!-- Input area -->
+  <div class="chat-input-area">
+    <textarea id="msg-input" rows="1" placeholder="Ketik pesan... (Enter untuk kirim)"></textarea>
+    <button id="send-btn">Kirim 🔒</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{# CryptoJS dari CDN — wajib load sebelum crypto-logic.js #}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+{# Core encryption logic (Bab III skripsi) #}
+<script src="{{ url_for('static', filename='js/crypto-logic.js') }}"></script>
+{# UI chat logic #}
+<script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+{% endblock %}

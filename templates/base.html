@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{% block title %}MedCrypto{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  {% block navbar %}
+  {% if session.user_id %}
+  <nav class="navbar">
+    <div class="container navbar-inner">
+      <div class="navbar-brand">MedCrypto<span>.app</span></div>
+      <div class="navbar-user">
+        {% if current_user %}
+          <span class="role-badge {% if current_user.role == 'dokter' %}dokter{% endif %}">
+            {{ current_user.role }}
+          </span>
+          <span>{{ current_user.username }}</span>
+        {% endif %}
+        <a href="{{ url_for('logout') }}" class="btn btn-sm">Logout</a>
+      </div>
+    </div>
+  </nav>
+  {% endif %}
+  {% endblock %}
+
+  {% block body %}{% endblock %}
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>
