@@ -10,7 +10,7 @@
       await doHandshake();
       updateStatus("Terenkripsi AES-256 CBC", "success");
       await loadMessages();
-      setInterval(pollMessages, 3000);
+      setInterval(pollMessages, 5000);
       initScrollButton();
     } catch (err) {
       updateStatus("Gagal: " + err.message, "danger");
@@ -163,7 +163,7 @@ function scrollBottom(force = false) {
     const box = document.getElementById("messages-box");
     const isNearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 150;
     if (force || isNearBottom) {
-      box.scrollTop = box.scrollHeight;
+      box.scrollTo({ top: box.scrollHeight, behavior: "smooth" });
     }
   }
 
