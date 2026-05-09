@@ -715,7 +715,8 @@ body {
 .chat-shell {
   display: flex;
   flex: 1;
-  height: calc(100vh - var(--topbar-h));
+  height: calc(100dvh - var(--topbar-h));
+  /* dvh = dynamic viewport height, otomatis hitung browser tab bar */
   overflow: hidden;
 }
 
@@ -930,6 +931,9 @@ body {
   align-items: flex-end;
   gap: 10px;
   flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
 }
 
 .input-wrap {
@@ -1144,6 +1148,8 @@ body {
 }
 
 @media (max-width: 768px) {
+  :root { --topbar-h: 48px; }
+
   .sidebar {
     transform: translateX(-100%);
     box-shadow: var(--shadow-md);
@@ -1163,8 +1169,28 @@ body {
   .login-right { padding: 24px; }
   .login-card { max-width: 100%; }
 
+  /* Chat mobile fixes */
+  .chat-shell {
+    height: calc(100dvh - var(--topbar-h));
+  }
+  .topbar { padding: 0 12px; }
+  .topbar-title { font-size: 14px; }
+  .topbar-badge { display: none; }
+  .topbar-divider { display: none; }
+  .topbar-sub { display: none; }
+
+  .chat-subheader { padding: 8px 12px; }
+  .chat-partner-name { font-size: 13px; }
+  .chat-partner-sub { display: none; }
+  .chat-subheader-right { display: none; }
+
   #messages-box { padding: 14px; }
-  .chat-input-area { padding: 10px 14px; }
+  .chat-input-area {
+    padding: 10px 12px;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    position: sticky;
+    bottom: 0;
+  }
   .msg-content { max-width: 78%; }
 }
 
