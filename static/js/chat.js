@@ -177,7 +177,7 @@ function scrollBottom(force = false) {
       btn.style.display = distFromBottom > 200 ? "flex" : "none";
     });
     btn.addEventListener("click", () => {
-      box.scrollTop = box.scrollHeight;
+      box.scrollTo({ top: box.scrollHeight, behavior: "smooth" });
       btn.style.display = "none";
     });
   }
