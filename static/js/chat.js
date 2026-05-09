@@ -11,6 +11,7 @@
       updateStatus("Terenkripsi AES-256 CBC", "success");
       await loadMessages();
       setInterval(pollMessages, 3000);
+      initScrollButton();
     } catch (err) {
       updateStatus("Gagal: " + err.message, "danger");
     }
@@ -85,7 +86,7 @@
       if (!res.ok) throw new Error(data.error);
       renderMessage(data.message, text);
       _lastMsgId = Math.max(_lastMsgId, data.message.id);
-      scrollBottom();
+      scrollBottom(true);
     } catch (err) {
       alert("Gagal kirim: " + err.message);
     } finally {
@@ -158,9 +159,27 @@
     }
   }
 
-  function scrollBottom() {
+function scrollBottom(force = false) {
     const box = document.getElementById("messages-box");
-    box.scrollTop = box.scrollHeight;
+    const isNearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 150;
+    if (force || isNearBottom) {
+      box.scrollTop = box.scrollHeight;
+    }
+  }
+
+  // Scroll button logic
+  function initScrollButton() {
+    const box = document.getElementById("messages-box");
+    const btn = document.getElementById("scroll-bottom-btn");
+    if (!btn) return;
+    box.addEventListener("scroll", () => {
+      const distFromBottom = box.scrollHeight - box.scrollTop - box.clientHeight;
+      btn.style.display = distFromBottom > 200 ? "flex" : "none";
+    });
+    btn.addEventListener("click", () => {
+      box.scrollTop = box.scrollHeight;
+      btn.style.display = "none";
+    });
   }
 
   function esc(str) {
