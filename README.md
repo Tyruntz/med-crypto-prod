@@ -1,194 +1,258 @@
-# MedCrypto — Sistem Konsultasi Medis Terenkripsi AES-256
+# MedCrypto
 
-Implementasi skripsi: **"Implementasi Algoritma AES-256 dalam Pengamanan Pesan pada Aplikasi Web Konsultasi Medis"**
+> Platform konsultasi medis dengan enkripsi end-to-end. Pesan dienkripsi di sisi klien menggunakan AES-256-CBC sebelum dikirim ke server — plaintext tidak pernah menyentuh database.
 
-## Stack
+[![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat&logo=python&logoColor=white)](https://python.org)
+[![Flask](https://img.shields.io/badge/Flask-3.0-000000?style=flat&logo=flask)](https://flask.palletsprojects.com)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=flat&logo=postgresql&logoColor=white)](https://postgresql.org)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat&logo=docker&logoColor=white)](https://docker.com)
 
-| Layer | Teknologi |
-|-------|-----------|
-| Backend | Python 3.11 + Flask |
-| Database | PostgreSQL 16 |
-| Kriptografi | PyCryptodome (server) + CryptoJS (client) |
-| Server | Gunicorn (WSGI) |
-| Proxy | Nginx |
-| Container | Docker + Docker Compose |
+---
 
-## Arsitektur Keamanan
+## Tentang
+
+MedCrypto adalah platform konsultasi berbasis web yang menyediakan komunikasi terenkripsi antara dokter dan pasien. Sistem mengimplementasikan hierarki kunci dua lapis (DEK + KEK) dengan seluruh operasi kriptografi dilakukan di browser, sehingga server tidak memiliki akses terhadap isi pesan.
+
+**Demo:** [https://medcrypto.duckdns.org](https://medcrypto.duckdns.org)
+
+---
+
+## Arsitektur
 
 ```
-Browser (Client)
-   │  encryptMessage(plaintext, DEK)  ← AES-256 CBC
-   │  decryptMessage(ciphertext, DEK, IV)
-   │
-   ├─ POST /api/unwrap-key ──────────► Flask (KMS)
-   │   {consultation_id}                  │  unwrap_dek(encrypted_DEK, KEK)
-   │   ◄── {dek: hex} via HTTPS ──────────┘
-   │
-   ├─ POST /api/messages/{id} ───────► Flask → PostgreSQL
-   │   {ciphertext, iv}                   Store: ciphertext + iv (no plaintext!)
-   │
-   └─ GET  /api/messages/{id} ───────► Flask → PostgreSQL
-       ◄── {messages: [{ciphertext, iv}]}  Client decrypt in-browser
+┌─────────────────────────────────────────────────────────────┐
+│                      Browser (Klien)                        │
+│                                                             │
+│  encryptMessage(plaintext, DEK)  →  AES-256-CBC + PKCS7     │
+│  decryptMessage(ciphertext, DEK, IV)  →  plaintext          │
+└──────────────┬──────────────────────────────────────────────┘
+               │ HTTPS / TLS 1.3
+┌──────────────▼──────────────────────────────────────────────┐
+│                   Nginx (Reverse Proxy)                     │
+│            Rate limiting · Terminasi SSL                    │
+└──────────────┬──────────────────────────────────────────────┘
+               │
+┌──────────────▼──────────────────────────────────────────────┐
+│                Flask + Gunicorn (Backend)                   │
+│                                                             │
+│  POST /api/unwrap-key   →  Dekripsi DEK menggunakan KEK     │
+│  POST /api/messages/:id →  Simpan {ciphertext, iv}          │
+│  GET  /api/messages/:id →  Kembalikan {ciphertext, iv}      │
+└──────────────┬──────────────────────────────────────────────┘
+               │
+┌──────────────▼──────────────────────────────────────────────┐
+│                  PostgreSQL (Basis Data)                    │
+│                                                             │
+│  messages      →  ciphertext (Base64) + iv (Hex)            │
+│  consultations →  encrypted_room_key (wrapped DEK)          │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## Quick Start (Dev)
+### Manajemen Kunci
+
+```
+KEK (Master Key)  ──────►  wrap_dek()  ──────►  Wrapped DEK  →  Database
+                                                      │
+                                                      ▼
+                           unwrap_dek()  ◄──────  /api/unwrap-key
+                                │
+                                ▼
+                        DEK (plaintext)  →  Memory browser (volatile)
+                                │
+                                ▼
+                      AES-256-CBC enkripsi/dekripsi
+```
+
+---
+
+## Teknologi
+
+| Lapisan | Teknologi |
+|---|---|
+| Backend | Python 3.11 + Flask 3.0 |
+| WSGI Server | Gunicorn 22 |
+| Basis Data | PostgreSQL 16 |
+| Reverse Proxy | Nginx Alpine |
+| Kriptografi (server) | PyCryptodome 3.20 |
+| Kriptografi (klien) | CryptoJS 4.2 |
+| Kontainerisasi | Docker + Docker Compose |
+| SSL | Let's Encrypt via Certbot |
+
+---
+
+## Memulai
+
+### Prasyarat
+
+- Python 3.11+
+- Docker & Docker Compose
+- PostgreSQL (atau gunakan setup Docker yang sudah disertakan)
+
+### Pengembangan Lokal
 
 ```bash
-# Clone / extract project
+git clone https://github.com/Tyruntz/med-crypto-prod.git
 cd med-crypto-prod
 
-# Install dependencies
 pip install -r requirements.txt
 
-# Setup .env
 cp .env.example .env
-# Edit .env: isi DATABASE_URL, SECRET_KEY, MASTER_KEK
+# Edit .env sesuai konfigurasi
+# Untuk dev lokal, gunakan DATABASE_URL=sqlite:///medcrypto.db
 
-# Jalankan (SQLite fallback kalau postgres belum ada)
 python app.py
 # → http://localhost:5000
 ```
 
-**Demo credentials:**
-- Pasien: `budi` / `pasien123`
-- Dokter: `dr_andi` / `dokter123`
+**Kredensial demo:**
 
----
+| Peran | Username | Password |
+|---|---|---|
+| Pasien | `budi` | `pasien123` |
+| Dokter | `dr_andi` | `dokter123` |
 
-## Deploy ke VPS / GCP (Production)
+### Deploy ke Produksi
 
-### Prerequisites di VPS
+#### 1. Persiapan Server (Ubuntu 22.04)
 
 ```bash
-# Install Docker
 curl -fsSL https://get.docker.com | sh
-sudo usermod -aG docker $USER
-newgrp docker
-
-# Install Docker Compose plugin
+sudo usermod -aG docker $USER && newgrp docker
 sudo apt install -y docker-compose-plugin
-
-# Clone / upload project ke VPS
-git clone <repo-url> med-crypto-prod
-# ATAU: scp -r med-crypto-prod/ user@VPS_IP:~/
-cd med-crypto-prod
 ```
 
-### Deploy Otomatis
+#### 2. Deploy
 
 ```bash
+git clone https://github.com/Tyruntz/med-crypto-prod.git
+cd med-crypto-prod
 chmod +x deploy.sh
 ./deploy.sh
 ```
 
-Script ini akan:
-1. Generate `SECRET_KEY`, `MASTER_KEK`, dan `POSTGRES_PASSWORD` secara otomatis
-2. Build Docker image
-3. Start PostgreSQL + App + Nginx
-4. Jalankan migrasi database
-5. Verifikasi health check
+Script deploy otomatis akan:
+- Membuat `SECRET_KEY`, `MASTER_KEK`, dan `POSTGRES_PASSWORD` secara acak
+- Build dan menjalankan semua container (App + PostgreSQL + Nginx)
+- Menjalankan migrasi database dan seed data awal
+- Memverifikasi health check
 
-### Update App (tanpa downtime)
+#### 3. Setup SSL
 
 ```bash
-git pull origin main   # kalau pakai git
-./deploy.sh --update
+sudo apt install -y python3-venv
+sudo python3 -m venv /opt/certbot
+sudo /opt/certbot/bin/pip install certbot certbot-dns-duckdns
+
+mkdir -p ~/.secrets
+echo "dns_duckdns_token=TOKEN_ANDA" > ~/.secrets/duckdns.ini
+chmod 600 ~/.secrets/duckdns.ini
+
+sudo /opt/certbot/bin/certbot certonly \
+  --authenticator dns-duckdns \
+  --dns-duckdns-credentials ~/.secrets/duckdns.ini \
+  -d domain.duckdns.org
+
+mkdir -p nginx/ssl
+sudo cp /etc/letsencrypt/live/domain.duckdns.org/fullchain.pem nginx/ssl/cert.pem
+sudo cp /etc/letsencrypt/live/domain.duckdns.org/privkey.pem nginx/ssl/key.pem
+sudo chown -R $USER:$USER nginx/ssl
+docker compose restart nginx
 ```
 
-### Setup SSL (HTTPS) — Opsional tapi Recommended
+#### 4. Pembaruan Aplikasi
 
 ```bash
-# Install Certbot
-sudo apt install -y certbot
-
-# Generate certificate (ganti dengan domain lo)
-sudo certbot certonly --standalone -d yourdomain.com
-
-# Copy ke folder nginx/ssl
-mkdir -p nginx/ssl
-sudo cp /etc/letsencrypt/live/yourdomain.com/fullchain.pem nginx/ssl/cert.pem
-sudo cp /etc/letsencrypt/live/yourdomain.com/privkey.pem   nginx/ssl/key.pem
-sudo chown -R $USER:$USER nginx/ssl
-
-# Restart nginx
-docker compose restart nginx
+git pull origin main
+./deploy.sh --update
 ```
 
 ---
 
-## Struktur File
+## Struktur Proyek
 
 ```
 med-crypto-prod/
-│
-├── app.py                # Flask routes + config production
-├── wsgi.py               # Gunicorn entry point
-├── database.py           # SQLAlchemy + Flask-Migrate init
-├── models.py             # User, Consultation, Message
-├── encryption_utils.py   # KEK/DEK wrap/unwrap (server-side)
-├── migrate.py            # Script setup DB
-├── gunicorn.conf.py      # Gunicorn workers, timeout, logging
-├── deploy.sh             # Auto-deploy script
-│
-├── Dockerfile            # Multi-stage build
-├── docker-compose.yml    # App + PostgreSQL + Nginx
-│
+├── app.py                 # Aplikasi Flask & routes
+├── wsgi.py                # Entry point Gunicorn
+├── database.py            # SQLAlchemy + Flask-Migrate
+├── models.py              # Model User, Consultation, Message
+├── encryption_utils.py    # Operasi KEK/DEK sisi server
+├── migrate.py             # Skrip migrasi database
+├── gunicorn.conf.py       # Konfigurasi Gunicorn
+├── deploy.sh              # Skrip deployment otomatis
+├── Dockerfile             # Multi-stage Docker build
+├── docker-compose.yml     # Orkestrasi multi-service
 ├── nginx/
-│   └── nginx.conf        # Reverse proxy + rate limiting + SSL
-│
+│   └── nginx.conf         # Reverse proxy + SSL + rate limiting
 ├── static/
 │   ├── css/style.css
 │   └── js/
-│       ├── crypto-logic.js   # AES-256 CBC encrypt/decrypt
-│       └── chat.js           # KMS handshake + UI chat
-│
+│       ├── crypto-logic.js    # Kriptografi AES-256-CBC sisi klien
+│       └── chat.js            # UI chat + KMS handshake
 ├── templates/
 │   ├── base.html
 │   ├── login.html
 │   ├── dashboard.html
 │   ├── chat_room.html
 │   └── error.html
-│
-├── .env.example          # Template env (aman di-commit)
+├── .env.example
 ├── .gitignore
 └── requirements.txt
 ```
 
 ---
 
+## Keamanan
+
+| Ancaman | Mitigasi |
+|---|---|
+| Kebocoran database | Enkripsi sisi klien — hanya ciphertext yang tersimpan |
+| Intersepsi jaringan | TLS 1.3 + enkripsi AES-256 berlapis |
+| Brute force login | Rate limiting Nginx (5 req/menit per IP) |
+| Kebocoran kunci | Hierarki kunci dua lapis (DEK + KEK) |
+| Pencurian sesi | Flask signed session + `SECRET_KEY` |
+| Akses API tidak sah | Autentikasi berbasis sesi di semua endpoint |
+| Serangan IV reuse | IV acak kriptografis per pesan |
+
+---
+
+## Referensi API
+
+| Method | Endpoint | Auth | Deskripsi |
+|---|---|---|---|
+| `POST` | `/api/unwrap-key` | Wajib | Dekripsi dan kembalikan DEK untuk sesi konsultasi |
+| `GET` | `/api/messages/:id` | Wajib | Ambil pesan terenkripsi |
+| `POST` | `/api/messages/:id` | Wajib | Simpan pesan terenkripsi |
+| `GET` | `/health` | Publik | Health check |
+
+---
+
 ## Perintah Berguna
 
 ```bash
-# Lihat logs real-time
+# Lihat log real-time
 docker compose logs -f app
 docker compose logs -f nginx
 
-# Masuk ke container app
-docker compose exec app bash
-
-# Masuk ke PostgreSQL
+# Akses PostgreSQL
 docker compose exec db psql -U medcrypto_user -d medcrypto_db
 
-# Lihat data pesan terenkripsi di DB (demo sidang!)
+# Lihat pesan terenkripsi di database
 docker compose exec db psql -U medcrypto_user -d medcrypto_db \
-  -c "SELECT id, sender_id, LEFT(ciphertext,40)||'...' AS ciphertext_sample, iv FROM messages;"
+  -c "SELECT id, sender_id, LEFT(ciphertext,40)||'...' AS ciphertext, iv, created_at FROM messages;"
 
 # Backup database
-docker compose exec db pg_dump -U medcrypto_user medcrypto_db > backup.sql
+docker compose exec db pg_dump -U medcrypto_user medcrypto_db > backup_$(date +%Y%m%d).sql
 
-# Matikan semua
+# Matikan semua service
 docker compose down
 
-# Matikan + hapus data (HATI-HATI!)
+# Matikan dan hapus semua data
 docker compose down -v
 ```
 
 ---
 
-## Demo Sidang Checklist
+## Lisensi
 
-- [ ] Buka SQLite/PostgreSQL Browser → tunjukkan kolom `ciphertext` berisi data acak
-- [ ] Network Tab DevTools → POST `/api/messages` → payload sudah `{ciphertext, iv}`, bukan plaintext
-- [ ] Ketik "Halo" dua kali → ciphertext BEDA (karena IV random per pesan)
-- [ ] Hover 🔒 di bubble pesan → tampil ciphertext + IV
-- [ ] Tunjukkan `/api/unwrap-key` → DEK hanya dikirim via HTTPS, tidak disimpan di localStorage
+MIT License — lihat [LICENSE](LICENSE) untuk detail lengkap.
