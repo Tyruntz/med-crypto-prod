@@ -716,7 +716,6 @@ body {
   display: flex;
   flex: 1;
   height: calc(100dvh - var(--topbar-h));
-  /* dvh = dynamic viewport height, otomatis hitung browser tab bar */
   overflow: hidden;
 }
 
@@ -727,6 +726,7 @@ body {
   flex-direction: column;
   min-width: 0;
   border-right: 1px solid var(--border);
+  overflow: hidden;
 }
 
 /* Chat sub-header (inside chat) */
@@ -933,7 +933,8 @@ body {
   flex-shrink: 0;
   position: sticky;
   bottom: 0;
-  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  /* padding-bottom: max(12px, env(safe-area-inset-bottom)); */
+  z-index: 10; 
 }
 
 .input-wrap {
