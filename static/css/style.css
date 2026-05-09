@@ -802,6 +802,11 @@ body {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--bg);
 }
 
 #messages-box::-webkit-scrollbar { width: 5px; }
@@ -927,9 +932,17 @@ body {
 
 /* ─── Chat Input ─────────────────────────────────────────── */
 .chat-input-area {
+  background: var(--white);
+  border-top: 1px solid var(--border);
+  padding: 12px 20px;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
   flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
 }
-
 .input-wrap {
   flex: 1;
   background: var(--bg);
